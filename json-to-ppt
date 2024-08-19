@@ -1,0 +1,121 @@
+from pptx import Presentation
+from pptx.util import Inches, Pt
+from pptx.dml.color import RGBColor
+import os
+import json
+import re
+
+# 设置从桌面获取文件路径
+desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
+json_file_path = os.path.join(desktop_path, "questions.json")
+
+# 读取 JSON 文件
+with open(json_file_path, 'r', encoding='utf-8') as f:
+    data = json.load(f)
+
+# 创建一个 PowerPoint 演示文稿
+prs = Presentation()
+
+# 设置字体大小
+font_size_questions = Pt(44)
+font_size_passages = Pt(36)
+
+# 处理选择题
+for q in data["questions"]:
+    # 创建包含题目和选项的幻灯片
+    slide = prs.slides.add_slide(prs.slide_layouts[5])
+    
+    question_text = q["question"]
+    options_text = q["options"]
+
+    # 添加题目和选项文本，将文本框稍微上移
+    textbox = slide.shapes.add_textbox(Inches(0.5), Inches(0.2), Inches(9.0), Inches(6.0))
+    text_frame = textbox.text_frame
+    text_frame.word_wrap = True
+
+    # 添加题目
+    p = text_frame.add_paragraph()
+    p.text = question_text
+    p.font.size = font_size_questions
+
+    # 添加选项
+    for opt in options_text:
+        p = text_frame.add_paragraph()
+        p.text = opt
+        p.font.size = font_size_questions
+
+    # 创建另一个幻灯片，显示正确答案
+    answer_slide = prs.slides.add_slide(prs.slide_layouts[5])
+
+    # 添加题目和选项文本（正确答案变色），文本框同样上移
+    textbox = answer_slide.shapes.add_textbox(Inches(0.5), Inches(0.2), Inches(9.0), Inches(6.0))
+    text_frame = textbox.text_frame
+    text_frame.word_wrap = True
+
+    # 添加题目
+    p = text_frame.add_paragraph()
+    p.text = question_text
+    p.font.size = font_size_questions
+
+    # 添加选项，并将正确答案变色
+    correct_answer_letter = q["answer"].split()[0]  # 提取正确答案的字母部分，如 "B"
+    for opt in options_text:
+        p = text_frame.add_paragraph()
+        p.text = opt
+        p.font.size = font_size_questions
+        if opt.startswith(correct_answer_letter):  # 检查选项是否以正确答案的字母开头
+            p.font.bold = True
+            p.font.color.rgb = RGBColor(0, 176, 80)  # 绿色
+
+# 处理段落填空题
+def add_passage_slide(prs, passage_text, font_size, answers, start_idx=0, is_answer=False):
+    # 处理文本，忽略选项中的句点，避免不必要的切割
+    cleaned_text = re.sub(r'\[.*?\]', lambda x: x.group(0).replace('.', ''), passage_text)
+    sentences = re.split(r'(?<=\.)\s+(?=[A-Z])', cleaned_text)
+    current_text = ""
+
+    # 每两句话为一组，生成幻灯片
+    for i in range(start_idx, len(sentences), 2):
+        current_text = " ".join(sentences[i:i+2])
+        
+        slide = prs.slides.add_slide(prs.slide_layouts[5])
+        textbox = slide.shapes.add_textbox(Inches(0.5), Inches(0.2), Inches(9.0), Inches(6.0))
+        text_frame = textbox.text_frame
+        text_frame.word_wrap = True
+
+        p = text_frame.add_paragraph()
+        p.text = current_text.strip()
+        p.font.size = font_size
+        
+        # 如果是答案幻灯片，变色正确答案
+        if is_answer:
+            for answer in answers:
+                correct_answer_letter = answer['answer'].split()[0]  # 提取正确答案的字母部分，如 "B"
+                pattern = rf"{correct_answer_letter}\.\s\w+"  # 匹配形如 "B. Word" 的格式
+                correct_answer_match = re.search(pattern, current_text)
+                if correct_answer_match:
+                    start, end = correct_answer_match.span()
+                    p.text = current_text[:start]
+                    run = p.add_run()
+                    run.text = correct_answer_match.group()
+                    run.font.bold = True
+                    run.font.color.rgb = RGBColor(0, 176, 80)  # 绿色
+                    p.add_run().text = current_text[end:]
+                else:
+                    p.text = current_text.strip()
+
+# 处理所有段落填空题
+for passage_data in data["passages"]:
+    passage_text = passage_data["text"]
+    answers = passage_data["answers"]
+    
+    # 依次生成文本幻灯片和对应的答案幻灯片
+    for i in range(0, len(answers)):
+        # 生成包含两句话的文本幻灯片
+        add_passage_slide(prs, passage_text, font_size_passages, answers, start_idx=i*2)
+        # 生成对应的答案幻灯片
+        add_passage_slide(prs, passage_text, font_size_passages, answers, start_idx=i*2, is_answer=True)
+
+# 保存 PPT 到桌面
+pptx_file_path = os.path.join(desktop_path, 'GEPT_Intermediate_Test_1.pptx')
+prs.save(pptx_file_path)
