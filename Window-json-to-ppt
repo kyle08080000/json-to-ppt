@@ -5,11 +5,8 @@ from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
 import re
 
-# 获取桌面路径
-desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
-
 # 设置 "Kyle PPT" 文件夹的路径
-kyle_ppt_folder = os.path.join(desktop_path, "Kyle PPT")
+kyle_ppt_folder = r"D:\Documents\Desktop\Kyle PPT"
 
 # 设置 JSON 文件路径
 json_file_path = os.path.join(kyle_ppt_folder, "questions.json")
