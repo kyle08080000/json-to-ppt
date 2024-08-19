@@ -27,7 +27,7 @@ font_size_questions = Pt(44)
 font_size_passages = Pt(36)
 
 # 处理选择题
-for q in data["questions"]:
+for q in data.get("questions", []):
     slide = prs.slides.add_slide(prs.slide_layouts[5])
     question_text = q["question"]
     options_text = q["options"]
@@ -64,46 +64,48 @@ for q in data["questions"]:
             p.font.bold = True
             p.font.color.rgb = RGBColor(0, 176, 80)  # 绿色
 
-def add_passage_slide(prs, passage_text, font_size, answers, start_idx=0, is_answer=False):
-    cleaned_text = re.sub(r'\[.*?\]', lambda x: x.group(0).replace('.', ''), passage_text)
-    sentences = re.split(r'(?<=\.)\s+(?=[A-Z])', cleaned_text)
-    current_text = ""
+# 处理段落填空题
+if "passages" in data:
+    def add_passage_slide(prs, passage_text, font_size, answers, start_idx=0, is_answer=False):
+        cleaned_text = re.sub(r'\[.*?\]', lambda x: x.group(0).replace('.', ''), passage_text)
+        sentences = re.split(r'(?<=\.)\s+(?=[A-Z])', cleaned_text)
+        current_text = ""
 
-    for i in range(start_idx, len(sentences), 2):
-        current_text = " ".join(sentences[i:i+2])
+        for i in range(start_idx, len(sentences), 2):
+            current_text = " ".join(sentences[i:i+2])
+            
+            slide = prs.slides.add_slide(prs.slide_layouts[5])
+            textbox = slide.shapes.add_textbox(Inches(0.5), Inches(0.2), Inches(9.0), Inches(6.0))
+            text_frame = textbox.text_frame
+            text_frame.word_wrap = True
+
+            p = text_frame.add_paragraph()
+            p.text = current_text.strip()
+            p.font.size = font_size
+            
+            if is_answer:
+                for answer in answers:
+                    correct_answer_letter = answer['answer'].split()[0]  # 提取正确答案的字母部分
+                    pattern = rf"{correct_answer_letter}\.\s\w+"  # 匹配形如 "B. Word" 的格式
+                    correct_answer_match = re.search(pattern, current_text)
+                    if correct_answer_match:
+                        start, end = correct_answer_match.span()
+                        p.text = current_text[:start]
+                        run = p.add_run()
+                        run.text = correct_answer_match.group()
+                        run.font.bold = True
+                        run.font.color.rgb = RGBColor(0, 176, 80)  # 绿色
+                        p.add_run().text = current_text[end:]
+                    else:
+                        p.text = current_text.strip()
+
+    for passage_data in data["passages"]:
+        passage_text = passage_data["text"]
+        answers = passage_data["answers"]
         
-        slide = prs.slides.add_slide(prs.slide_layouts[5])
-        textbox = slide.shapes.add_textbox(Inches(0.5), Inches(0.2), Inches(9.0), Inches(6.0))
-        text_frame = textbox.text_frame
-        text_frame.word_wrap = True
-
-        p = text_frame.add_paragraph()
-        p.text = current_text.strip()
-        p.font.size = font_size
-        
-        if is_answer:
-            for answer in answers:
-                correct_answer_letter = answer['answer'].split()[0]  # 提取正确答案的字母部分
-                pattern = rf"{correct_answer_letter}\.\s\w+"  # 匹配形如 "B. Word" 的格式
-                correct_answer_match = re.search(pattern, current_text)
-                if correct_answer_match:
-                    start, end = correct_answer_match.span()
-                    p.text = current_text[:start]
-                    run = p.add_run()
-                    run.text = correct_answer_match.group()
-                    run.font.bold = True
-                    run.font.color.rgb = RGBColor(0, 176, 80)  # 绿色
-                    p.add_run().text = current_text[end:]
-                else:
-                    p.text = current_text.strip()
-
-for passage_data in data["passages"]:
-    passage_text = passage_data["text"]
-    answers = passage_data["answers"]
-    
-    for i in range(0, len(answers)):
-        add_passage_slide(prs, passage_text, font_size_passages, answers, start_idx=i*2)
-        add_passage_slide(prs, passage_text, font_size_passages, answers, start_idx=i*2, is_answer=True)
+        for i in range(0, len(answers)):
+            add_passage_slide(prs, passage_text, font_size_passages, answers, start_idx=i*2)
+            add_passage_slide(prs, passage_text, font_size_passages, answers, start_idx=i*2, is_answer=True)
 
 # 保存 PPT 到 "Kyle PPT" 文件夹
 pptx_file_path = os.path.join(kyle_ppt_folder, 'GEPT_Intermediate_Test_1.pptx')
